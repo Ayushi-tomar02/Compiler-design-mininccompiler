@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 int yylex();
 void yyerror(const char *s);
 extern int line;
