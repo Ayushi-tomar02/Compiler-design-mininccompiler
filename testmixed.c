@@ -6,6 +6,7 @@ string s = "Ayushi;
     
 int c = 12.4;
 
+
 a = b + ;          // syntax error
 
 if (a > ) {        // syntax error
@@ -16,8 +17,11 @@ int int y;
 
 int a;             // semantic error (redeclaration)
 
+
 x = y + 3;         // semantic error
+
 
 12..5              // lexical error
 
+    
 @                  // lexical error
