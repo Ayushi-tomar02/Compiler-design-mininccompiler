@@ -3,6 +3,7 @@ float b = 10.7.6;
 char a = 'a;
 string s = "Ayushi;
 
+    
 int c = 12.4;
 
 a = b + ;          // syntax error
