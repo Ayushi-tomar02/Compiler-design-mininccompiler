@@ -48,6 +48,7 @@ typedef struct {
     int initialized;
 } Symbol;
 
+
 Symbol symtab[100];
 int symcount=0;
 
