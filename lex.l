@@ -12,7 +12,6 @@ int line = 1;
 
 "//".* ;
 
-
 "int"      { return INT; }
 "float"    { return FLOAT; }
 "char"     { return CHAR; }
