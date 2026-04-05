@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "parser.tab.h"
 
+
 extern void addLexError(int, const char*);
 int line = 1;
 %}
