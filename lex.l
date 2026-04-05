@@ -12,6 +12,7 @@ int line = 1;
 
 "//".* ;
 
+
 "int"      { return INT; }
 "float"    { return FLOAT; }
 "char"     { return CHAR; }
@@ -21,6 +22,7 @@ int line = 1;
 "else"     { return ELSE; }
 "while"    { return WHILE; }
 "for"      { return FOR; }
+
 
 
 [0-9]*\.[0-9]*\.[0-9]*    { addLexError(line, "Malformed number"); }
@@ -47,6 +49,7 @@ int line = 1;
 }
 
 
+
 "=="|">="|"<="|"!="|">"|"<" { return RELOP; }
 
 "+" { return PLUS; }
@@ -56,11 +59,13 @@ int line = 1;
 "=" { return ASSIGN; }
 
 
+
 ";" { return SEMI; }
 "(" { return LPAREN; }
 ")" { return RPAREN; }
 "{" { return LBRACE; }
 "}" { return RBRACE; }
+
 
 
 [ \t\r]+ ;
