@@ -57,6 +57,7 @@ int lookup(char *s){
     return -1;
 }
 
+
 void insert(char *name,char *type){
     if(lookup(name)!=-1){
         if(!syntaxErrorFlag)
@@ -68,6 +69,7 @@ void insert(char *name,char *type){
     symtab[symcount].initialized=0;
     symcount++;
 }
+
 
 // TYPE CHECK 
 char* checkType(char* t1,char* t2){
