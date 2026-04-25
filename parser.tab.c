@@ -66,7 +66,6 @@
 
 
 
-
 /* First part of user prologue.  */
 #line 1 "parser.y"
 
