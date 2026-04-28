@@ -3,15 +3,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 int yylex();
 void yyerror(const char *s);
 extern int line;
 
-//FLAGS 
+/* FLAGS */
 int syntaxErrorFlag = 0;
 
-//ERROR STORAGE 
+/* ERROR STORAGE */
 typedef struct {
     int line;
     char msg[100];
@@ -21,7 +20,7 @@ Error lexErrors[100], synErrors[100], semErrors[100];
 int lexCount=0, synCount=0, semCount=0;
 int errorCount = 0;
 
-//ERROR FUNCTIONS 
+/* ERROR FUNCTIONS */
 void addLexError(int l, const char *msg){
     lexErrors[lexCount].line=l;
     strcpy(lexErrors[lexCount++].msg,msg);
@@ -41,13 +40,12 @@ void addSemError(int l, const char *msg){
     errorCount++;
 }
 
-// SYMBOL TABLE 
+/* SYMBOL TABLE */
 typedef struct {
     char name[50];
     char type[10];
     int initialized;
 } Symbol;
-
 
 Symbol symtab[100];
 int symcount=0;
@@ -57,7 +55,6 @@ int lookup(char *s){
         if(strcmp(symtab[i].name,s)==0) return i;
     return -1;
 }
-
 
 void insert(char *name,char *type){
     if(lookup(name)!=-1){
@@ -71,8 +68,7 @@ void insert(char *name,char *type){
     symcount++;
 }
 
-
-// TYPE CHECK 
+/* TYPE CHECK */
 char* checkType(char* t1,char* t2){
     if(!t1 || !t2) return NULL;
 
@@ -88,10 +84,86 @@ char* checkType(char* t1,char* t2){
     return t1;
 }
 
-// PRINT 
+/* ================= AST ================= */
+
+typedef struct node {
+    char label[20];
+    struct node *left, *right;
+} node;
+
+node* createNode(char* label, node* left, node* right){
+    node* n = malloc(sizeof(node));
+    strcpy(n->label,label);
+    n->left = left;
+    n->right = right;
+    return n;
+}
+
+node* root = NULL;
+
+/* ================= DAG ================= */
+
+node* createDAG(node* root){
+    if(!root) return NULL;
+
+    root->left = createDAG(root->left);
+    root->right = createDAG(root->right);
+
+    if(root->left && root->right &&
+       strcmp(root->left->label, root->right->label) == 0 &&
+       root->left->left == root->right->left &&
+       root->left->right == root->right->right){
+        return root->left;
+    }
+
+    return root;
+}
+
+/* ================= IR ================= */
+
+void printAST(node* root,int lvl){
+    if(!root) return;
+    for(int i=0;i<lvl;i++) printf("  ");
+    printf("%s\n",root->label);
+    printAST(root->left,lvl+1);
+    printAST(root->right,lvl+1);
+}
+
+void printPostfix(node* root){
+    if(!root) return;
+    printPostfix(root->left);
+    printPostfix(root->right);
+    printf("%s ",root->label);
+}
+
+int tempCount=0;
+
+char* newTemp(){
+    char* t=malloc(10);
+    sprintf(t,"t%d",tempCount++);
+    return t;
+}
+
+char* generateTAC(node* root){
+    if(!root) return NULL;
+
+    if(!root->left && !root->right)
+        return root->label;
+
+    char* l=generateTAC(root->left);
+    char* r=generateTAC(root->right);
+
+    char* t=newTemp();
+    printf("%s = %s %s %s\n",t,l,root->label,r);
+
+    return t;
+}
+
+/* PRINT */
 void printSymbolTable(){
     printf("\n===== SYMBOL TABLE =====\n");
     printf("Name\tType\tInitialized\n");
+
     for(int i=0;i<symcount;i++){
         printf("%s\t%s\t%d\n",
             symtab[i].name,
@@ -117,21 +189,27 @@ void printErrors(){
 }
 %}
 
-%union { char* str; }
+/* UNION */
+%union {
+    char* str;
+    struct {
+        char* type;
+        struct node* node;
+    } exprAttr;
+}
 
-/* ===== TOKENS ===== */
+/* TOKENS */
 %token <str> IDENTIFIER NUMBER STRING_LITERAL CHAR_LITERAL
 %token INT FLOAT CHAR STRING
 %token IF ELSE WHILE FOR
 %token PLUS MINUS MUL DIV ASSIGN RELOP
 %token SEMI LPAREN RPAREN LBRACE RBRACE
 
-%type <str> expr type
+%type <str> type
+%type <exprAttr> expr
 
-/* ===== PRECEDENCE (FIXES CONFLICTS) ===== */
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
-
 %nonassoc RELOP
 %left PLUS MINUS
 %left MUL DIV
@@ -165,7 +243,7 @@ decl:
         insert($2,$1);
         int i=lookup($2);
         if(i!=-1 && !syntaxErrorFlag){
-            if(strcmp(symtab[i].type,$4)!=0)
+            if(strcmp(symtab[i].type,$4.type)!=0)
                 addSemError(line,"Type mismatch in initialization");
             symtab[i].initialized=1;
         }
@@ -186,15 +264,19 @@ type:
 
 assign:
     IDENTIFIER ASSIGN expr SEMI {
+
         int i=lookup($1);
+
         if(i==-1 && !syntaxErrorFlag){
             addSemError(line,"Undeclared variable");
         } 
         else if(i!=-1 && !syntaxErrorFlag){
-            if(strcmp(symtab[i].type,$3)!=0)
+            if(strcmp(symtab[i].type,$3.type)!=0)
                 addSemError(line,"Type mismatch in assignment");
             symtab[i].initialized=1;
         }
+
+        root = createNode("=", createNode($1,NULL,NULL), $3.node);
     }
 
     | IDENTIFIER ASSIGN error SEMI {
@@ -217,41 +299,99 @@ while_stmt:
 ;
 
 expr:
-      expr PLUS expr { $$=checkType($1,$3); }
-    | expr MINUS expr { $$=checkType($1,$3); }
-    | expr MUL expr { $$=checkType($1,$3); }
-    | expr DIV expr { $$=checkType($1,$3); }
-
-    | expr RELOP expr { $$="int"; }
-
+      expr PLUS expr {
+        $$.type = checkType($1.type,$3.type);
+        $$.node = createNode("+",$1.node,$3.node);
+      }
+    | expr MINUS expr {
+        $$.type = checkType($1.type,$3.type);
+        $$.node = createNode("-",$1.node,$3.node);
+      }
+    | expr MUL expr {
+        $$.type = checkType($1.type,$3.type);
+        $$.node = createNode("*",$1.node,$3.node);
+      }
+    | expr DIV expr {
+        $$.type = checkType($1.type,$3.type);
+        $$.node = createNode("/",$1.node,$3.node);
+      }
+    | expr RELOP expr {
+        $$.type = "int";
+        $$.node = createNode("relop",$1.node,$3.node);
+      }
     | IDENTIFIER {
         int i = lookup($1);
 
         if(i == -1 && !syntaxErrorFlag){
             addSemError(line,"Undeclared variable");
-            $$ = NULL;
+            $$.type = NULL;
         } else {
-            $$ = (i==-1) ? NULL : symtab[i].type;
+            $$.type = symtab[i].type;
         }
+
+        $$.node = createNode($1,NULL,NULL);
     }
-
-    | NUMBER { $$=$1; }
-    | STRING_LITERAL { $$="string"; }
-    | CHAR_LITERAL { $$="char"; }
-
-    | LPAREN expr RPAREN { $$=$2; }
+    | NUMBER {
+        $$.type = $1;
+        $$.node = createNode($1,NULL,NULL);
+    }
+    | STRING_LITERAL {
+        $$.type = "string";
+        $$.node = createNode("str",NULL,NULL);
+    }
+    | CHAR_LITERAL {
+        $$.type = "char";
+        $$.node = createNode("char",NULL,NULL);
+    }
+    | LPAREN expr RPAREN { $$ = $2; }
 ;
 
 %%
 
-int main(){
+int main(int argc, char* argv[]){
+
+    int choice = 1;
+
+    if(argc == 2){
+        choice = atoi(argv[1]);
+    }
+
     yyparse();
 
-    printf("\nTotal Errors: %d\n",errorCount);
+    printf("Total Errors: %d\n",errorCount);
+
+    if(lexCount > 0 || synCount > 0){
+        printErrors();
+        return 0;
+    }
+
     printErrors();
 
-    if(!syntaxErrorFlag){
+    if(semCount > 0){
         printSymbolTable();
+        return 0;
+    }
+
+    printf("\n\n");
+
+    if(choice==1){
+        printf("===== IR (AST) =====\n");
+        printAST(root,0);
+    }
+    else if(choice==2){
+        printf("===== IR (DAG) =====\n");
+        node* dagRoot = createDAG(root);
+        printAST(dagRoot,0);
+    }
+    else if(choice==3){
+        printf("===== IR (Postfix) =====\n");
+        printPostfix(root);
+        printf("\n");
+    }
+    else if(choice==4){
+        printf("===== IR (TAC) =====\n");
+        generateTAC(root);
+        printf("\n");
     }
 
     return 0;
