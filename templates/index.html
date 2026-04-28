@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Compiler IR Generator</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+
+    <h1>✨ Intermediate Code Generator</h1>
+
+    <!-- INPUT SECTION -->
+    <div class="section">
+        <h2>📄 Enter Code</h2>
+        <textarea id="code" placeholder="Write your C code here..."></textarea>
+
+        <input type="file" id="fileInput">
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="controls">
+        <select id="choice">
+            <option value="1">AST</option>
+            <option value="2">DAG</option>
+            <option value="3">Postfix</option>
+            <option value="4">TAC</option>
+        </select>
+
+        <button onclick="compileCode()">🚀 Compile</button>
+    </div>
+
+    <!-- OUTPUT -->
+    <div class="section">
+        <h2>📊 Result</h2>
+        <pre id="output"></pre>
+    </div>
+
+</div>
+
+<script>
+function compileCode(){
+    const code = document.getElementById("code").value;
+    const choice = document.getElementById("choice").value;
+
+    fetch('/compile', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `code=${encodeURIComponent(code)}&choice=${choice}`
+    })
+    .then(res => res.text())
+    .then(data => {
+        document.getElementById("output").textContent = data;
+    });
+}
+
+// File upload
+document.getElementById("fileInput").addEventListener("change", function(){
+    const file = this.files[0];
+    const reader = new FileReader();
+
+    reader.onload = function(e){
+        document.getElementById("code").value = e.target.result;
+    }
+
+    reader.readAsText(file);
+});
+</script>
+
+</body>
+</html>
