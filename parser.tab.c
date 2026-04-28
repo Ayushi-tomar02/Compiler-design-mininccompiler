@@ -77,10 +77,10 @@ int yylex();
 void yyerror(const char *s);
 extern int line;
 
-//FLAGS 
+/* FLAGS */
 int syntaxErrorFlag = 0;
 
-//ERROR STORAGE 
+/* ERROR STORAGE */
 typedef struct {
     int line;
     char msg[100];
@@ -90,7 +90,7 @@ Error lexErrors[100], synErrors[100], semErrors[100];
 int lexCount=0, synCount=0, semCount=0;
 int errorCount = 0;
 
-//ERROR FUNCTIONS 
+/* ERROR FUNCTIONS */
 void addLexError(int l, const char *msg){
     lexErrors[lexCount].line=l;
     strcpy(lexErrors[lexCount++].msg,msg);
@@ -110,7 +110,7 @@ void addSemError(int l, const char *msg){
     errorCount++;
 }
 
-// SYMBOL TABLE 
+/* SYMBOL TABLE */
 typedef struct {
     char name[50];
     char type[10];
@@ -138,7 +138,7 @@ void insert(char *name,char *type){
     symcount++;
 }
 
-// TYPE CHECK 
+/* TYPE CHECK */
 char* checkType(char* t1,char* t2){
     if(!t1 || !t2) return NULL;
 
@@ -154,10 +154,86 @@ char* checkType(char* t1,char* t2){
     return t1;
 }
 
-// PRINT 
+/* ================= AST ================= */
+
+typedef struct node {
+    char label[20];
+    struct node *left, *right;
+} node;
+
+node* createNode(char* label, node* left, node* right){
+    node* n = malloc(sizeof(node));
+    strcpy(n->label,label);
+    n->left = left;
+    n->right = right;
+    return n;
+}
+
+node* root = NULL;
+
+/* ================= DAG ================= */
+
+node* createDAG(node* root){
+    if(!root) return NULL;
+
+    root->left = createDAG(root->left);
+    root->right = createDAG(root->right);
+
+    if(root->left && root->right &&
+       strcmp(root->left->label, root->right->label) == 0 &&
+       root->left->left == root->right->left &&
+       root->left->right == root->right->right){
+        return root->left;
+    }
+
+    return root;
+}
+
+/* ================= IR ================= */
+
+void printAST(node* root,int lvl){
+    if(!root) return;
+    for(int i=0;i<lvl;i++) printf("  ");
+    printf("%s\n",root->label);
+    printAST(root->left,lvl+1);
+    printAST(root->right,lvl+1);
+}
+
+void printPostfix(node* root){
+    if(!root) return;
+    printPostfix(root->left);
+    printPostfix(root->right);
+    printf("%s ",root->label);
+}
+
+int tempCount=0;
+
+char* newTemp(){
+    char* t=malloc(10);
+    sprintf(t,"t%d",tempCount++);
+    return t;
+}
+
+char* generateTAC(node* root){
+    if(!root) return NULL;
+
+    if(!root->left && !root->right)
+        return root->label;
+
+    char* l=generateTAC(root->left);
+    char* r=generateTAC(root->right);
+
+    char* t=newTemp();
+    printf("%s = %s %s %s\n",t,l,root->label,r);
+
+    return t;
+}
+
+/* PRINT */
 void printSymbolTable(){
     printf("\n===== SYMBOL TABLE =====\n");
     printf("Name\tType\tInitialized\n");
+
     for(int i=0;i<symcount;i++){
         printf("%s\t%s\t%d\n",
             symtab[i].name,
@@ -182,7 +258,7 @@ void printErrors(){
     }
 }
 
-#line 186 "parser.tab.c"
+#line 262 "parser.tab.c"
 
 # ifndef YY_CAST
 #  ifdef __cplusplus
@@ -633,12 +709,12 @@ static const yytype_int8 yytranslate[] =
 
 #if YYDEBUG
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
-static const yytype_uint8 yyrline[] =
+static const yytype_int16 yyrline[] =
 {
-       0,   138,   138,   139,   143,   144,   145,   146,   147,   148,
-     152,   156,   160,   170,   177,   178,   179,   180,   184,   196,
-     203,   204,   205,   212,   216,   217,   218,   219,   221,   223,
-     234,   235,   236,   238
+       0,   220,   220,   221,   225,   226,   227,   228,   229,   230,
+     234,   238,   242,   252,   259,   260,   261,   262,   266,   282,
+     289,   290,   291,   298,   302,   306,   310,   314,   318,   322,
+     334,   338,   342,   346
 };
 #endif
 
@@ -1249,171 +1325,201 @@ yyreduce:
   switch (yyn)
     {
   case 9: /* stmt: error SEMI  */
-#line 148 "parser.y"
+#line 230 "parser.y"
                  { addSynError(line,"Invalid statement"); yyerrok; }
-#line 1255 "parser.tab.c"
+#line 1331 "parser.tab.c"
     break;
 
   case 11: /* decl: type IDENTIFIER SEMI  */
-#line 156 "parser.y"
+#line 238 "parser.y"
                          {
         insert((yyvsp[-1].str),(yyvsp[-2].str));
     }
-#line 1263 "parser.tab.c"
+#line 1339 "parser.tab.c"
     break;
 
   case 12: /* decl: type IDENTIFIER ASSIGN expr SEMI  */
-#line 160 "parser.y"
+#line 242 "parser.y"
                                        {
         insert((yyvsp[-3].str),(yyvsp[-4].str));
         int i=lookup((yyvsp[-3].str));
         if(i!=-1 && !syntaxErrorFlag){
-            if(strcmp(symtab[i].type,(yyvsp[-1].str))!=0)
+            if(strcmp(symtab[i].type,(yyvsp[-1].exprAttr).type)!=0)
                 addSemError(line,"Type mismatch in initialization");
             symtab[i].initialized=1;
         }
     }
-#line 1277 "parser.tab.c"
+#line 1353 "parser.tab.c"
     break;
 
   case 13: /* decl: type IDENTIFIER ASSIGN error SEMI  */
-#line 170 "parser.y"
+#line 252 "parser.y"
                                         {
         addSynError(line,"Missing expression in declaration");
         yyerrok;
     }
-#line 1286 "parser.tab.c"
+#line 1362 "parser.tab.c"
     break;
 
   case 14: /* type: INT  */
-#line 177 "parser.y"
+#line 259 "parser.y"
           { (yyval.str)="int"; }
-#line 1292 "parser.tab.c"
+#line 1368 "parser.tab.c"
     break;
 
   case 15: /* type: FLOAT  */
-#line 178 "parser.y"
+#line 260 "parser.y"
             { (yyval.str)="float"; }
-#line 1298 "parser.tab.c"
+#line 1374 "parser.tab.c"
     break;
 
   case 16: /* type: CHAR  */
-#line 179 "parser.y"
+#line 261 "parser.y"
            { (yyval.str)="char"; }
-#line 1304 "parser.tab.c"
+#line 1380 "parser.tab.c"
     break;
 
   case 17: /* type: STRING  */
-#line 180 "parser.y"
+#line 262 "parser.y"
              { (yyval.str)="string"; }
-#line 1310 "parser.tab.c"
+#line 1386 "parser.tab.c"
     break;
 
   case 18: /* assign: IDENTIFIER ASSIGN expr SEMI  */
-#line 184 "parser.y"
+#line 266 "parser.y"
                                 {
+
         int i=lookup((yyvsp[-3].str));
+
         if(i==-1 && !syntaxErrorFlag){
             addSemError(line,"Undeclared variable");
         } 
         else if(i!=-1 && !syntaxErrorFlag){
-            if(strcmp(symtab[i].type,(yyvsp[-1].str))!=0)
+            if(strcmp(symtab[i].type,(yyvsp[-1].exprAttr).type)!=0)
                 addSemError(line,"Type mismatch in assignment");
             symtab[i].initialized=1;
         }
+
+        root = createNode("=", createNode((yyvsp[-3].str),NULL,NULL), (yyvsp[-1].exprAttr).node);
     }
-#line 1326 "parser.tab.c"
+#line 1406 "parser.tab.c"
     break;
 
   case 19: /* assign: IDENTIFIER ASSIGN error SEMI  */
-#line 196 "parser.y"
+#line 282 "parser.y"
                                    {
         addSynError(line,"Missing expression after '='");
         yyerrok;
     }
-#line 1335 "parser.tab.c"
+#line 1415 "parser.tab.c"
     break;
 
   case 22: /* if_stmt: IF LPAREN error RPAREN  */
-#line 205 "parser.y"
+#line 291 "parser.y"
                              {
         addSynError(line,"Invalid condition in if");
         yyerrok;
     }
-#line 1344 "parser.tab.c"
+#line 1424 "parser.tab.c"
     break;
 
   case 24: /* expr: expr PLUS expr  */
-#line 216 "parser.y"
-                     { (yyval.str)=checkType((yyvsp[-2].str),(yyvsp[0].str)); }
-#line 1350 "parser.tab.c"
+#line 302 "parser.y"
+                     {
+        (yyval.exprAttr).type = checkType((yyvsp[-2].exprAttr).type,(yyvsp[0].exprAttr).type);
+        (yyval.exprAttr).node = createNode("+",(yyvsp[-2].exprAttr).node,(yyvsp[0].exprAttr).node);
+      }
+#line 1433 "parser.tab.c"
     break;
 
   case 25: /* expr: expr MINUS expr  */
-#line 217 "parser.y"
-                      { (yyval.str)=checkType((yyvsp[-2].str),(yyvsp[0].str)); }
-#line 1356 "parser.tab.c"
+#line 306 "parser.y"
+                      {
+        (yyval.exprAttr).type = checkType((yyvsp[-2].exprAttr).type,(yyvsp[0].exprAttr).type);
+        (yyval.exprAttr).node = createNode("-",(yyvsp[-2].exprAttr).node,(yyvsp[0].exprAttr).node);
+      }
+#line 1442 "parser.tab.c"
     break;
 
   case 26: /* expr: expr MUL expr  */
-#line 218 "parser.y"
-                    { (yyval.str)=checkType((yyvsp[-2].str),(yyvsp[0].str)); }
-#line 1362 "parser.tab.c"
+#line 310 "parser.y"
+                    {
+        (yyval.exprAttr).type = checkType((yyvsp[-2].exprAttr).type,(yyvsp[0].exprAttr).type);
+        (yyval.exprAttr).node = createNode("*",(yyvsp[-2].exprAttr).node,(yyvsp[0].exprAttr).node);
+      }
+#line 1451 "parser.tab.c"
     break;
 
   case 27: /* expr: expr DIV expr  */
-#line 219 "parser.y"
-                    { (yyval.str)=checkType((yyvsp[-2].str),(yyvsp[0].str)); }
-#line 1368 "parser.tab.c"
+#line 314 "parser.y"
+                    {
+        (yyval.exprAttr).type = checkType((yyvsp[-2].exprAttr).type,(yyvsp[0].exprAttr).type);
+        (yyval.exprAttr).node = createNode("/",(yyvsp[-2].exprAttr).node,(yyvsp[0].exprAttr).node);
+      }
+#line 1460 "parser.tab.c"
     break;
 
   case 28: /* expr: expr RELOP expr  */
-#line 221 "parser.y"
-                      { (yyval.str)="int"; }
-#line 1374 "parser.tab.c"
+#line 318 "parser.y"
+                      {
+        (yyval.exprAttr).type = "int";
+        (yyval.exprAttr).node = createNode("relop",(yyvsp[-2].exprAttr).node,(yyvsp[0].exprAttr).node);
+      }
+#line 1469 "parser.tab.c"
     break;
 
   case 29: /* expr: IDENTIFIER  */
-#line 223 "parser.y"
+#line 322 "parser.y"
                  {
         int i = lookup((yyvsp[0].str));
 
         if(i == -1 && !syntaxErrorFlag){
             addSemError(line,"Undeclared variable");
-            (yyval.str) = NULL;
+            (yyval.exprAttr).type = NULL;
         } else {
-            (yyval.str) = (i==-1) ? NULL : symtab[i].type;
+            (yyval.exprAttr).type = symtab[i].type;
         }
+
+        (yyval.exprAttr).node = createNode((yyvsp[0].str),NULL,NULL);
     }
-#line 1389 "parser.tab.c"
+#line 1486 "parser.tab.c"
     break;
 
   case 30: /* expr: NUMBER  */
-#line 234 "parser.y"
-             { (yyval.str)=(yyvsp[0].str); }
-#line 1395 "parser.tab.c"
+#line 334 "parser.y"
+             {
+        (yyval.exprAttr).type = (yyvsp[0].str);
+        (yyval.exprAttr).node = createNode((yyvsp[0].str),NULL,NULL);
+    }
+#line 1495 "parser.tab.c"
     break;
 
   case 31: /* expr: STRING_LITERAL  */
-#line 235 "parser.y"
-                     { (yyval.str)="string"; }
-#line 1401 "parser.tab.c"
+#line 338 "parser.y"
+                     {
+        (yyval.exprAttr).type = "string";
+        (yyval.exprAttr).node = createNode("str",NULL,NULL);
+    }
+#line 1504 "parser.tab.c"
     break;
 
   case 32: /* expr: CHAR_LITERAL  */
-#line 236 "parser.y"
-                   { (yyval.str)="char"; }
-#line 1407 "parser.tab.c"
+#line 342 "parser.y"
+                   {
+        (yyval.exprAttr).type = "char";
+        (yyval.exprAttr).node = createNode("char",NULL,NULL);
+    }
+#line 1513 "parser.tab.c"
     break;
 
   case 33: /* expr: LPAREN expr RPAREN  */
-#line 238 "parser.y"
-                         { (yyval.str)=(yyvsp[-1].str); }
-#line 1413 "parser.tab.c"
+#line 346 "parser.y"
+                         { (yyval.exprAttr) = (yyvsp[-1].exprAttr); }
+#line 1519 "parser.tab.c"
     break;
 
 
-#line 1417 "parser.tab.c"
+#line 1523 "parser.tab.c"
 
       default: break;
     }
@@ -1606,17 +1712,53 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 241 "parser.y"
+#line 349 "parser.y"
 
 
-int main(){
+int main(int argc, char* argv[]){
+
+    int choice = 1;
+
+    if(argc == 2){
+        choice = atoi(argv[1]);
+    }
+
     yyparse();
 
-    printf("\nTotal Errors: %d\n",errorCount);
+    printf("Total Errors: %d\n",errorCount);
+
+    if(lexCount > 0 || synCount > 0){
+        printErrors();
+        return 0;
+    }
+
     printErrors();
 
-    if(!syntaxErrorFlag){
+    if(semCount > 0){
         printSymbolTable();
+        return 0;
+    }
+
+    printf("\n\n");
+
+    if(choice==1){
+        printf("===== IR (AST) =====\n");
+        printAST(root,0);
+    }
+    else if(choice==2){
+        printf("===== IR (DAG) =====\n");
+        node* dagRoot = createDAG(root);
+        printAST(dagRoot,0);
+    }
+    else if(choice==3){
+        printf("===== IR (Postfix) =====\n");
+        printPostfix(root);
+        printf("\n");
+    }
+    else if(choice==4){
+        printf("===== IR (TAC) =====\n");
+        generateTAC(root);
+        printf("\n");
     }
 
     return 0;
