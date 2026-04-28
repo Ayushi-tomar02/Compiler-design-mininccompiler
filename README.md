@@ -183,7 +183,7 @@ Tested with:
 
 ## 📦 Repository
 
-https://github.com/Ayushi-tomar02/compiler-Design
+https://github.com/Ayushi-tomar02/Compiler-design-mininccompiler
 
 ---
 
