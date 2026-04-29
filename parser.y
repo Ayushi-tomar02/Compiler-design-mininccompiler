@@ -7,6 +7,7 @@ int yylex();
 void yyerror(const char *s);
 extern int line;
 
+
 /* FLAGS */
 int syntaxErrorFlag = 0;
 
@@ -15,6 +16,7 @@ typedef struct {
     int line;
     char msg[100];
 } Error;
+
 
 Error lexErrors[100], synErrors[100], semErrors[100];
 int lexCount=0, synCount=0, semCount=0;
